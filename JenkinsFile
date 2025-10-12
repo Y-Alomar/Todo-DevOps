@@ -4,7 +4,6 @@ pipeline {
     environment {
         DOCKER_HUB_REPO = 'yousefca'
         AZURE_VM_IP = '172.179.173.132'              
-        AZURE_VM_USER = 'azureuser'
     }
     
     stages {
@@ -52,21 +51,14 @@ pipeline {
             steps {
                 echo '🚀 Deploying to Azure VM...'
                 script {
-                    withCredentials([sshUserPrivateKey(
-                        credentialsId: 'azure-vm-ssh',
-                        keyFileVariable: 'SSH_KEY'
+                    withCredentials([usernamePassword(
+                        credentialsId: 'azure-vm-password',
+                        usernameVariable: 'VM_USER',
+                        passwordVariable: 'VM_PASS'
                     )]) {
-                        // Fix permissions using SYSTEM account (Jenkins runs as SYSTEM)
+                        // Use plink (PuTTY) for password auth
                         bat """
-                            icacls "%SSH_KEY%" /reset
-                            icacls "%SSH_KEY%" /inheritance:r
-                            icacls "%SSH_KEY%" /grant:r "NT AUTHORITY\\SYSTEM:(R)"
-                            icacls "%SSH_KEY%" /grant:r "%USERDOMAIN%\\%USERNAME%:(R)"
-                        """
-                        
-                        // Now SSH
-                        bat """
-                            ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                            echo %VM_PASS% | plink -ssh -pw %VM_PASS% -batch %VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
                         """
                     }
                 }
@@ -77,20 +69,13 @@ pipeline {
             steps {
                 echo '✅ Verifying deployment...'
                 script {
-                    withCredentials([sshUserPrivateKey(
-                        credentialsId: 'azure-vm-ssh',
-                        keyFileVariable: 'SSH_KEY'
+                    withCredentials([usernamePassword(
+                        credentialsId: 'azure-vm-password',
+                        usernameVariable: 'VM_USER',
+                        passwordVariable: 'VM_PASS'
                     )]) {
-                        // Fix permissions again
                         bat """
-                            icacls "%SSH_KEY%" /reset
-                            icacls "%SSH_KEY%" /inheritance:r
-                            icacls "%SSH_KEY%" /grant:r "NT AUTHORITY\\SYSTEM:(R)"
-                            icacls "%SSH_KEY%" /grant:r "%USERDOMAIN%\\%USERNAME%:(R)"
-                        """
-                        
-                        bat """
-                            ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "docker ps"
+                            echo %VM_PASS% | plink -ssh -pw %VM_PASS% -batch %VM_USER%@%AZURE_VM_IP% "docker ps"
                         """
                     }
                 }
