@@ -2,8 +2,8 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_HUB_REPO = 'yousefca'  // Change this!
-        AZURE_VM_IP = '172.179.173.132'              // Your VM IP
+        DOCKER_HUB_REPO = 'yousefca'  // ⚠️ CHANGE THIS!
+        AZURE_VM_IP = '172.179.173.132'              
         AZURE_VM_USER = 'azureuser'
     }
     
@@ -18,27 +18,31 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 echo 'Building Docker images...'
-                sh 'docker-compose build'
+                script {
+                    // Use 'bat' for Windows instead of 'sh'
+                    bat 'docker-compose build'
+                }
             }
         }
         
-        stage('Tag Images') {
+        stage('Tag and Push Images') {
             steps {
-                echo 'Tagging Docker images...'
-                sh """
-                    docker tag my-todo-app-backend ${DOCKER_HUB_REPO}/todo-backend:latest
-                    docker tag my-todo-app-frontend ${DOCKER_HUB_REPO}/todo-frontend:latest
-                """
-            }
-        }
-        
-        stage('Push to Docker Hub') {
-            steps {
-                echo 'Pushing images to Docker Hub...'
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-                    sh "docker push ${DOCKER_HUB_REPO}/todo-backend:latest"
-                    sh "docker push ${DOCKER_HUB_REPO}/todo-frontend:latest"
+                echo 'Tagging and pushing images...'
+                script {
+                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                        bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                        
+                        // Get image names from docker-compose
+                        bat """
+                            docker tag todo-devops-backend:latest %DOCKER_HUB_REPO%/todo-backend:latest
+                            docker push %DOCKER_HUB_REPO%/todo-backend:latest
+                        """
+                        
+                        bat """
+                            docker tag todo-devops-frontend:latest %DOCKER_HUB_REPO%/todo-frontend:latest
+                            docker push %DOCKER_HUB_REPO%/todo-frontend:latest
+                        """
+                    }
                 }
             }
         }
@@ -46,15 +50,13 @@ pipeline {
         stage('Deploy to Azure VM') {
             steps {
                 echo 'Deploying to Azure VM...'
-                sshagent(['azure-vm-ssh']) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no ${AZURE_VM_USER}@${AZURE_VM_IP} '
-                            cd todo-app &&
-                            git pull origin main &&
-                            docker-compose pull &&
-                            docker-compose up -d
-                        '
-                    """
+                script {
+                    sshagent(['azure-vm-ssh']) {
+                        // Use bat for Windows SSH
+                        bat """
+                            ssh -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                        """
+                    }
                 }
             }
         }
@@ -62,10 +64,13 @@ pipeline {
     
     post {
         success {
-            echo 'Deployment successful! 🎉'
+            echo '✅ Deployment successful!'
         }
         failure {
-            echo 'Deployment failed! ❌'
+            echo '❌ Deployment failed!'
+        }
+        always {
+            bat 'docker logout || exit 0'
         }
     }
 }
