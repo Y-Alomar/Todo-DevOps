@@ -53,7 +53,7 @@ pipeline {
             steps {
                 echo '🚀 Deploying to Azure VM...'
                 bat """
-                    "%GIT_SSH%" -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "cd ToDo-DevOps && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                    "%GIT_SSH%" -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "cd Todo-DevOps && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
                 """
             }
         }
