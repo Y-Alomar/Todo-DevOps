@@ -1,0 +1,39 @@
+name: my-todo-app
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./todo-backend
+      dockerfile: DockerFile
+    container_name: todo-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./todo-backend:/Todo-Devops
+      - backend-data:/Todo-Devops
+    environment:
+      - FLASK_ENV=development
+    networks:
+      - todo-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./todo-frontend
+      dockerfile: DockerFile
+    container_name: todo-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - todo-network
+    restart: unless-stopped
+
+volumes:
+  backend-data:
+
+networks:
+  todo-network:
+    driver: bridge

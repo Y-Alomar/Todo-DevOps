@@ -8,7 +8,7 @@ function App() {
   const [error, setError] = useState('');
 
   // API base URL - change this to your Flask backend URL
-  const API_URL = 'http://localhost:5000/api';
+  const API_URL = import.meta.env.VITE_API_URL || '/api';
 
   // Fetch todos on component mount
   useEffect(() => {
