@@ -29,17 +29,20 @@ pipeline {
             steps {
                 echo 'Tagging and pushing images...'
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                        bat 'echo %DOCKER_PASS% | docker login -u %DOCKER_USER% --password-stdin'
+                    withCredentials([
+                        string(credentialsId: 'dockerhub-username', variable: 'DOCKER_USER'),
+                        string(credentialsId: 'dockerhub-token', variable: 'DOCKER_PASS')
+                    ]) {
+                        bat '''
+                            echo %DOCKER_PASS% > pass.txt
+                            type pass.txt | docker login -u %DOCKER_USER% --password-stdin
+                            del pass.txt
+                        '''
                         
-                        // Get image names from docker-compose
                         bat """
-                            docker tag todo-devops-backend:latest %DOCKER_HUB_REPO%/todo-backend:latest
+                            docker tag my-todo-app-backend:latest %DOCKER_HUB_REPO%/todo-backend:latest
                             docker push %DOCKER_HUB_REPO%/todo-backend:latest
-                        """
-                        
-                        bat """
-                            docker tag todo-devops-frontend:latest %DOCKER_HUB_REPO%/todo-frontend:latest
+                            docker tag my-todo-app-frontend:latest %DOCKER_HUB_REPO%/todo-frontend:latest
                             docker push %DOCKER_HUB_REPO%/todo-frontend:latest
                         """
                     }
