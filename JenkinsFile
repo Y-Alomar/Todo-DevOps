@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_HUB_REPO = 'yousefca'  // ⚠️ Your exact username
+        DOCKER_HUB_REPO = 'yousefca'
         AZURE_VM_IP = '172.179.173.132'              
         AZURE_VM_USER = 'azureuser'
     }
@@ -30,7 +30,6 @@ pipeline {
                         string(credentialsId: 'dockerhub-username', variable: 'DOCKER_USER'),
                         string(credentialsId: 'dockerhub-token', variable: 'DOCKER_PASS')
                     ]) {
-                        // Direct login works on Windows (no stdin piping)
                         bat 'docker login -u %DOCKER_USER% -p %DOCKER_PASS%'
                     }
                 }
@@ -53,9 +52,12 @@ pipeline {
             steps {
                 echo '🚀 Deploying to Azure VM...'
                 script {
-                    sshagent(['azure-vm-ssh']) {
+                    withCredentials([sshUserPrivateKey(
+                        credentialsId: 'azure-vm-ssh',
+                        keyFileVariable: 'SSH_KEY'
+                    )]) {
                         bat """
-                            ssh -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                            ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
                         """
                     }
                 }
@@ -66,9 +68,12 @@ pipeline {
             steps {
                 echo '✅ Verifying deployment...'
                 script {
-                    sshagent(['azure-vm-ssh']) {
+                    withCredentials([sshUserPrivateKey(
+                        credentialsId: 'azure-vm-ssh',
+                        keyFileVariable: 'SSH_KEY'
+                    )]) {
                         bat """
-                            ssh -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "docker ps --filter name=todo"
+                            ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "docker ps"
                         """
                     }
                 }
@@ -78,12 +83,15 @@ pipeline {
     
     post {
         success {
-            echo '✅ Deployment successful! 🎉'
-            echo 'Docker Hub: https://hub.docker.com/u/%DOCKER_HUB_REPO%'
-            echo 'Live App: http://%AZURE_VM_IP%'
+            echo '✅ ========================================='
+            echo '✅  DEPLOYMENT SUCCESSFUL! 🎉'
+            echo '✅ ========================================='
+            echo '✅ Docker Hub: https://hub.docker.com/u/%DOCKER_HUB_REPO%'
+            echo '✅ Live App: http://%AZURE_VM_IP%'
+            echo '✅ ========================================='
         }
         failure {
-            echo '❌ Deployment failed!'
+            echo '❌ Deployment failed! Check logs above.'
         }
         always {
             bat 'docker logout || exit 0'
