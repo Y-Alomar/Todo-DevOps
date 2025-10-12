@@ -2,7 +2,7 @@ pipeline {
     agent any
     
     environment {
-        DOCKER_HUB_REPO = 'yousefca'  // ⚠️ CHANGE THIS!
+        DOCKER_HUB_REPO = 'yousefca'  // ⚠️ Your exact username
         AZURE_VM_IP = '172.179.173.132'              
         AZURE_VM_USER = 'azureuser'
     }
@@ -10,54 +10,65 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                echo 'Pulling code from GitHub...'
+                echo '📦 Pulling code from GitHub...'
                 checkout scm
             }
         }
         
         stage('Build Docker Images') {
             steps {
-                echo 'Building Docker images...'
+                echo '🔨 Building Docker images...'
+                bat 'docker-compose build'
+            }
+        }
+        
+        stage('Login to Docker Hub') {
+            steps {
+                echo '🔐 Logging into Docker Hub...'
                 script {
-                    // Use 'bat' for Windows instead of 'sh'
-                    bat 'docker-compose build'
+                    withCredentials([
+                        string(credentialsId: 'dockerhub-username', variable: 'DOCKER_USER'),
+                        string(credentialsId: 'dockerhub-token', variable: 'DOCKER_PASS')
+                    ]) {
+                        // Direct login works on Windows (no stdin piping)
+                        bat 'docker login -u %DOCKER_USER% -p %DOCKER_PASS%'
+                    }
                 }
             }
         }
         
         stage('Tag and Push Images') {
             steps {
-                echo 'Tagging and pushing images...'
+                echo '🏷️ Tagging and pushing images...'
+                bat """
+                    docker tag my-todo-app-backend:latest %DOCKER_HUB_REPO%/todo-backend:latest
+                    docker tag my-todo-app-frontend:latest %DOCKER_HUB_REPO%/todo-frontend:latest
+                    docker push %DOCKER_HUB_REPO%/todo-backend:latest
+                    docker push %DOCKER_HUB_REPO%/todo-frontend:latest
+                """
+            }
+        }
+        
+        stage('Deploy to Azure VM') {
+            steps {
+                echo '🚀 Deploying to Azure VM...'
                 script {
-                    withCredentials([
-                        string(credentialsId: 'dockerhub-username', variable: 'DOCKER_USER'),
-                        string(credentialsId: 'dockerhub-token', variable: 'DOCKER_PASS')
-                    ]) {
-                        bat '''
-                            echo %DOCKER_PASS% > pass.txt
-                            type pass.txt | docker login -u %DOCKER_USER% --password-stdin
-                            del pass.txt
-                        '''
-                        
+                    sshagent(['azure-vm-ssh']) {
                         bat """
-                            docker tag my-todo-app-backend:latest %DOCKER_HUB_REPO%/todo-backend:latest
-                            docker push %DOCKER_HUB_REPO%/todo-backend:latest
-                            docker tag my-todo-app-frontend:latest %DOCKER_HUB_REPO%/todo-frontend:latest
-                            docker push %DOCKER_HUB_REPO%/todo-frontend:latest
+                            ssh -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
                         """
                     }
                 }
             }
         }
         
-        stage('Deploy to Azure VM') {
+        stage('Verify Deployment') {
             steps {
-                echo 'Deploying to Azure VM...'
+                echo '✅ Verifying deployment...'
                 script {
                     sshagent(['azure-vm-ssh']) {
-                        // Use bat for Windows SSH
                         bat """
-                            ssh -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                            ssh -o StrictHostKeyChecking=no %AZURE_VM_USER%@%AZURE_VM_IP% "docker ps --filter name=todo"
                         """
                     }
                 }
@@ -67,7 +78,9 @@ pipeline {
     
     post {
         success {
-            echo '✅ Deployment successful!'
+            echo '✅ Deployment successful! 🎉'
+            echo 'Docker Hub: https://hub.docker.com/u/%DOCKER_HUB_REPO%'
+            echo 'Live App: http://%AZURE_VM_IP%'
         }
         failure {
             echo '❌ Deployment failed!'
