@@ -3,7 +3,8 @@ pipeline {
     
     environment {
         DOCKER_HUB_REPO = 'yousefca'
-        AZURE_VM_IP = '172.179.173.132'              
+        AZURE_VM_IP = '172.179.173.132'
+        SSH_KEY = 'C:\\ProgramData\\Jenkins\\.jenkins\\jenkins_azure_key'
     }
     
     stages {
@@ -50,47 +51,18 @@ pipeline {
         stage('Deploy to Azure VM') {
             steps {
                 echo '🚀 Deploying to Azure VM...'
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'azure-vm-password',
-                        usernameVariable: 'VM_USER',
-                        passwordVariable: 'VM_PASS'
-                    )]) {
-                        // Use PowerShell with sshpass-like functionality
-                        powershell """
-                            \$securePass = ConvertTo-SecureString '${VM_PASS}' -AsPlainText -Force
-                            \$cred = New-Object System.Management.Automation.PSCredential ('${VM_USER}', \$securePass)
-                            
-                            # Create expect script for password
-                            \$command = @'
-cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans
-'@
-                            
-                            # Use ssh with password (requires interaction workaround)
-                            \$env:SSH_ASKPASS = 'echo ${VM_PASS}'
-                            \$env:DISPLAY = 'dummy:0'
-                            
-                            ssh -o StrictHostKeyChecking=no ${VM_USER}@${AZURE_VM_IP} "\$command"
-                        """
-                    }
-                }
+                bat """
+                    ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                """
             }
         }
         
         stage('Verify Deployment') {
             steps {
                 echo '✅ Verifying deployment...'
-                script {
-                    withCredentials([usernamePassword(
-                        credentialsId: 'azure-vm-password',
-                        usernameVariable: 'VM_USER',
-                        passwordVariable: 'VM_PASS'
-                    )]) {
-                        powershell """
-                            ssh -o StrictHostKeyChecking=no ${VM_USER}@${AZURE_VM_IP} "docker ps"
-                        """
-                    }
-                }
+                bat """
+                    ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "docker ps"
+                """
             }
         }
     }
