@@ -1,0 +1,71 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_HUB_REPO = 'yousefca'  // Change this!
+        AZURE_VM_IP = '172.179.173.132'              // Your VM IP
+        AZURE_VM_USER = 'azureuser'
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo 'Pulling code from GitHub...'
+                checkout scm
+            }
+        }
+        
+        stage('Build Docker Images') {
+            steps {
+                echo 'Building Docker images...'
+                sh 'docker-compose build'
+            }
+        }
+        
+        stage('Tag Images') {
+            steps {
+                echo 'Tagging Docker images...'
+                sh """
+                    docker tag my-todo-app-backend ${DOCKER_HUB_REPO}/todo-backend:latest
+                    docker tag my-todo-app-frontend ${DOCKER_HUB_REPO}/todo-frontend:latest
+                """
+            }
+        }
+        
+        stage('Push to Docker Hub') {
+            steps {
+                echo 'Pushing images to Docker Hub...'
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
+                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
+                    sh "docker push ${DOCKER_HUB_REPO}/todo-backend:latest"
+                    sh "docker push ${DOCKER_HUB_REPO}/todo-frontend:latest"
+                }
+            }
+        }
+        
+        stage('Deploy to Azure VM') {
+            steps {
+                echo 'Deploying to Azure VM...'
+                sshagent(['azure-vm-ssh']) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${AZURE_VM_USER}@${AZURE_VM_IP} '
+                            cd todo-app &&
+                            git pull origin main &&
+                            docker-compose pull &&
+                            docker-compose up -d
+                        '
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo 'Deployment successful! 🎉'
+        }
+        failure {
+            echo 'Deployment failed! ❌'
+        }
+    }
+}
