@@ -56,10 +56,12 @@ pipeline {
                         credentialsId: 'azure-vm-ssh',
                         keyFileVariable: 'SSH_KEY'
                     )]) {
-                        // Fix permissions on Windows
+                        // Fix permissions using SYSTEM account (Jenkins runs as SYSTEM)
                         bat """
+                            icacls "%SSH_KEY%" /reset
                             icacls "%SSH_KEY%" /inheritance:r
-                            icacls "%SSH_KEY%" /grant:r "%USERNAME%:R"
+                            icacls "%SSH_KEY%" /grant:r "NT AUTHORITY\\SYSTEM:(R)"
+                            icacls "%SSH_KEY%" /grant:r "%USERDOMAIN%\\%USERNAME%:(R)"
                         """
                         
                         // Now SSH
@@ -81,8 +83,10 @@ pipeline {
                     )]) {
                         // Fix permissions again
                         bat """
+                            icacls "%SSH_KEY%" /reset
                             icacls "%SSH_KEY%" /inheritance:r
-                            icacls "%SSH_KEY%" /grant:r "%USERNAME%:R"
+                            icacls "%SSH_KEY%" /grant:r "NT AUTHORITY\\SYSTEM:(R)"
+                            icacls "%SSH_KEY%" /grant:r "%USERDOMAIN%\\%USERNAME%:(R)"
                         """
                         
                         bat """
