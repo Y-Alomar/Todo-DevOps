@@ -56,9 +56,21 @@ pipeline {
                         usernameVariable: 'VM_USER',
                         passwordVariable: 'VM_PASS'
                     )]) {
-                        // Use plink (PuTTY) for password auth
-                        bat """
-                            echo %VM_PASS% | plink -ssh -pw %VM_PASS% -batch %VM_USER%@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                        // Use PowerShell with sshpass-like functionality
+                        powershell """
+                            \$securePass = ConvertTo-SecureString '${VM_PASS}' -AsPlainText -Force
+                            \$cred = New-Object System.Management.Automation.PSCredential ('${VM_USER}', \$securePass)
+                            
+                            # Create expect script for password
+                            \$command = @'
+cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans
+'@
+                            
+                            # Use ssh with password (requires interaction workaround)
+                            \$env:SSH_ASKPASS = 'echo ${VM_PASS}'
+                            \$env:DISPLAY = 'dummy:0'
+                            
+                            ssh -o StrictHostKeyChecking=no ${VM_USER}@${AZURE_VM_IP} "\$command"
                         """
                     }
                 }
@@ -74,8 +86,8 @@ pipeline {
                         usernameVariable: 'VM_USER',
                         passwordVariable: 'VM_PASS'
                     )]) {
-                        bat """
-                            echo %VM_PASS% | plink -ssh -pw %VM_PASS% -batch %VM_USER%@%AZURE_VM_IP% "docker ps"
+                        powershell """
+                            ssh -o StrictHostKeyChecking=no ${VM_USER}@${AZURE_VM_IP} "docker ps"
                         """
                     }
                 }
