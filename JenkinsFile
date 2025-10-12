@@ -52,30 +52,19 @@ pipeline {
             steps {
                 echo '🚀 Deploying to Azure VM...'
                 bat """
-                    REM Ensure strict permissions (SYSTEM only)
-                    icacls "%SSH_KEY%" /inheritance:r
-                    icacls "%SSH_KEY%" /grant "NT AUTHORITY\\SYSTEM:(R)"
-                    
-                    REM Deploy
-                    ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
+                    "C:\\Program Files\\Git\\usr\\bin\\ssh.exe" -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "cd todo-app && git pull origin main && docker-compose pull && docker-compose up -d --remove-orphans"
                 """
             }
         }
-        
+
         stage('Verify Deployment') {
             steps {
                 echo '✅ Verifying deployment...'
                 bat """
-                    REM Ensure strict permissions
-                    icacls "%SSH_KEY%" /inheritance:r
-                    icacls "%SSH_KEY%" /grant "NT AUTHORITY\\SYSTEM:(R)"
-                    
-                    REM Verify
-                    ssh -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "docker ps"
+                    "C:\\Program Files\\Git\\usr\\bin\\ssh.exe" -i "%SSH_KEY%" -o StrictHostKeyChecking=no azureuser@%AZURE_VM_IP% "docker ps"
                 """
             }
         }
-    }
     
     post {
         success {
